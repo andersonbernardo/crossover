@@ -16,97 +16,40 @@ using Xunit;
 
 namespace crossblog.tests.Controllers
 {
-    public class ArticlesControllerTests
+    public class ArticlesControllerTests : IDisposable
     {
         private ArticlesController _articlesController;
-
-        private Mock<IArticleRepository> _articleRepositoryMock = new Mock<IArticleRepository>();
+        private SqliteConnection _connection;
+        private DbContextOptions<CrossBlogDbContext> options;
+        private CrossBlogDbContext _context;
 
         public ArticlesControllerTests()
         {
-            _articlesController = new ArticlesController(_articleRepositoryMock.Object);
-        }
+            _connection = new SqliteConnection("DataSource=:memory:");
+            _connection.Open();
 
-        [Fact]
-        public async Task Search_ReturnsEmptyList()
-        {
-            // Arrange
-            var articleDbSetMock = Builder<Article>.CreateListOfSize(3).Build().ToAsyncDbSetMock();
-            _articleRepositoryMock.Setup(m => m.Query()).Returns(articleDbSetMock.Object);
+            options = new DbContextOptionsBuilder<CrossBlogDbContext>()
+                 .UseSqlite(_connection)
+                 .Options;
 
-            // Act
-            var result = await _articlesController.Search("Invalid");
+            using (var context = new CrossBlogDbContext(options))
+            {
+                context.Database.EnsureCreated();
+            }
 
-            // Assert
-            Assert.NotNull(result);
+            _context = new CrossBlogDbContext(options);
+                            
+            _articlesController = new ArticlesController(new ArticleRepository(_context));            
 
-            var objectResult = result as OkObjectResult;
-            Assert.NotNull(objectResult);
+        }        
 
-            var content = objectResult.Value as ArticleListModel;
-            Assert.NotNull(content);
-
-            Assert.Empty(content.Articles);
-        }
-
-        //[Fact]
-        //public async Task Search_ReturnsList()
-        //{
-        //    var connection = new SqliteConnection("DataSource=:memory:");
-        //    connection.Open();          
-
-        //    // Arrange
-        //    var options = new DbContextOptionsBuilder<CrossBlogDbContext>()
-        //            .UseSqlite(connection)
-        //            .Options;
-
-
-        //    using (var context = new CrossBlogDbContext(options))
-        //    {
-        //        context.Database.EnsureCreated();
-        //    }
-
-        //    using (var context = new CrossBlogDbContext(options))
-        //    {
-        //        context.Articles.Add(new Article { Title = "Title1", Content = "Content1" });
-        //        context.Articles.Add(new Article { Title = "Title2", Content = "Content2" });
-        //        context.Articles.Add(new Article { Title = "Title3", Content = "Content3" });
-        //        context.SaveChanges();
-                
-        //    }
-
-        //    using (var context = new CrossBlogDbContext(options))
-        //    {
-
-        //        var _ArticleRepository = new ArticleRepository(context);
-
-
-        //        var articlesController = new ArticlesController(_ArticleRepository);
-
-        //        // Act
-        //        var result = await _articlesController.Search("Title");
-
-        //        // Assert
-        //        Assert.NotNull(result);
-
-        //        var objectResult = result as OkObjectResult;
-        //        Assert.NotNull(objectResult);
-
-        //        var content = objectResult.Value as ArticleListModel;
-        //        Assert.NotNull(content);
-
-        //        Assert.Equal(3,content.Articles.Count());            
-        //    }
-
-        //    connection.Close();
-        //}
 
         [Fact]
         public async Task Get_NotFound()
         {
-            // Arrange
-            _articleRepositoryMock.Setup(m => m.GetAsync(1)).Returns(Task.FromResult<Article>(null));
-
+            //Arrange
+            _context.Articles = null;
+            
             // Act
             var result = await _articlesController.Get(1);
 
@@ -120,9 +63,10 @@ namespace crossblog.tests.Controllers
         [Fact]
         public async Task Get_ReturnsItem()
         {
-            // Arrange
-            _articleRepositoryMock.Setup(m => m.GetAsync(1)).Returns(Task.FromResult<Article>(Builder<Article>.CreateNew().Build()));
-            
+            // Arrange            
+            _context.Articles.AddRange(Builder<Article>.CreateListOfSize(3).Build());
+            _context.SaveChanges();
+
             // Act
             var result = await _articlesController.Get(1);
 
@@ -140,16 +84,15 @@ namespace crossblog.tests.Controllers
 
         [Fact]
         public async Task Put_UpdateITem() {
-
-            // Arrange
-            var article = Builder<Article>.CreateNew().Build();
-
-            _articleRepositoryMock.Setup(x => x.GetAsync(1)).Returns(Task.FromResult<Article>(article));
+                                    
+            // Arrange            
+            _context.Articles.Add(Builder<Article>.CreateNew().Build());
+            _context.SaveChanges();            
 
             var articleModel = new ArticleModel { Title = "TitleUpdated" };
             
             // Act
-            var result = await _articlesController.Put(article.Id, articleModel);
+            var result = await _articlesController.Put(_context.Articles.FirstOrDefault().Id, articleModel);
 
             // Assert
             Assert.NotNull(result);
@@ -163,6 +106,30 @@ namespace crossblog.tests.Controllers
             Assert.NotNull(content);
 
             Assert.Equal("TitleUpdated", content.Title);
+
+        }
+
+        [Fact]
+        public async Task Post_InsertiTem()
+        {
+            // Arrange            
+            var article = Builder<ArticleModel>.CreateNew().Build();            
+
+            // Act
+            var result = await _articlesController.Post(article);
+
+            // Assert
+            Assert.NotNull(result);
+
+            var objectResult = result as CreatedResult;
+
+            Assert.NotNull(objectResult);
+
+            var content = objectResult.Value as Article;
+
+            Assert.NotNull(content);
+
+            Assert.Equal(1, _context.Articles.Count());
 
         }
 
@@ -183,5 +150,10 @@ namespace crossblog.tests.Controllers
 
         }
 
+        public void Dispose()
+        {
+            _connection.Close();
+            _context.Dispose();
+        }
     }
 }

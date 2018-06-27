@@ -1,12 +1,10 @@
 using System;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace crossblog.Domain
 {
     public class Comment : BaseEntity
     {
-        public int? ArticleId { get; set; }
+        public int ArticleId { get; set; }
 
         public virtual Article Article { get; set; }
         

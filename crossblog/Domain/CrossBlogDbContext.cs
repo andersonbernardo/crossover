@@ -21,6 +21,8 @@ namespace crossblog.Domain
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Comment>().HasOne(c => c.Article).WithMany().OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<Article>().HasMany(c => c.Comments).WithOne(x=>x.Article).HasForeignKey(x=>x.ArticleId);
         }
     }
 }

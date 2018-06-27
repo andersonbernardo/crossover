@@ -4,6 +4,8 @@ using crossblog.Model;
 using crossblog.Repositories;
 using FizzWare.NBuilder;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using System;
 using System.Collections.Generic;
@@ -17,21 +19,36 @@ namespace crossblog.tests.Controllers
     public class CommentsControllerTests
     {
         private CommentsController _commentsController;
-
-        private Mock<ICommentRepository> _commentRepositoryMock = new Mock<ICommentRepository>();
-        private Mock<IArticleRepository> _articleRepositoryMock = new Mock<IArticleRepository>();
+        private SqliteConnection _connection;
+        private DbContextOptions<CrossBlogDbContext> options;
+        private CrossBlogDbContext _context;
 
         public CommentsControllerTests()
         {
-            _commentsController = new CommentsController(_articleRepositoryMock.Object, _commentRepositoryMock.Object);
+            _connection = new SqliteConnection("DataSource=:memory:");
+            _connection.Open();
+
+            options = new DbContextOptionsBuilder<CrossBlogDbContext>()
+                 .UseSqlite(_connection)
+                 .Options;
+
+            using (var context = new CrossBlogDbContext(options))
+            {
+                context.Database.EnsureCreated();
+            }
+
+            _context = new CrossBlogDbContext(options);
+
+            _commentsController = new CommentsController(new ArticleRepository(_context), new CommentRepository(_context));
+
         }
-       
+
        
         [Fact]
         public async Task Get_NotFound()
         {
-            // Arrange
-            _commentRepositoryMock.Setup(m => m.GetAsync(1)).Returns(Task.FromResult<Comment>(null));
+            //Arrange
+            _context.Articles = null;
 
             // Act
             var result = await _commentsController.Get(1);
@@ -44,16 +61,17 @@ namespace crossblog.tests.Controllers
         }
 
         [Fact]
-        public async Task Get_ReturnsItens()
+        public async Task Get_ReturnsItem()
         {
+            // Arrange            
+            var article = Builder<Article>.CreateNew().Build();
+            var comment = Builder<Comment>.CreateNew().Build();
 
-            // Arrange
-            var articleDbSetMock = Builder<Article>.CreateListOfSize(3).Build().ToAsyncDbSetMock();
-            _articleRepositoryMock.Setup(m => m.Query()).Returns(articleDbSetMock.Object);
+            article.Comments = new List<Comment>();
+            article.Comments.Add(comment);
 
-            // Arrange
-            _commentRepositoryMock.Setup(m => m.GetAsync(1)).Returns(Task.FromResult<Comment>(Builder<Comment>.CreateNew().Build()));
-            
+            _context.Articles.Add(article);
+
             // Act
             var result = await _commentsController.Get(1);
 
@@ -61,11 +79,9 @@ namespace crossblog.tests.Controllers
             Assert.NotNull(result);
 
             var objectResult = result as OkObjectResult;
-
             Assert.NotNull(objectResult);
 
-            var content = objectResult.Value as CommentModel;
-
+            var content = objectResult.Value as ArticleModel;
             Assert.NotNull(content);
 
             Assert.Equal("Title1", content.Title);
@@ -74,16 +90,15 @@ namespace crossblog.tests.Controllers
         [Fact]
         public async Task Put_UpdateITem()
         {
+            // Arrange       
 
-            // Arrange
             var comment = Builder<Comment>.CreateNew().Build();
+            _context.Comments.Add(comment);            
 
-            _commentRepositoryMock.Setup(x => x.GetAsync(1)).Returns(Task.FromResult<Comment>(comment));
-
-            var commentModel = new CommentModel { Title = "TitleUpdated" };
-
+            var commentUpdated = new CommentModel { Title = "TitleUpdated" };
+            
             // Act
-            var result = await _commentsController.Put(comment.Id, commentModel);
+            var result = await _commentsController.Put(comment.Id, commentUpdated);
 
             // Assert
             Assert.NotNull(result);
@@ -92,7 +107,7 @@ namespace crossblog.tests.Controllers
 
             Assert.NotNull(objectResult);
 
-            var content = objectResult.Value as Article;
+            var content = objectResult.Value as Comment;
 
             Assert.NotNull(content);
 
@@ -101,18 +116,46 @@ namespace crossblog.tests.Controllers
         }
 
         [Fact]
+        public async Task Post_InsertITem()
+        {
+            // Arrange            
+            var article = Builder<Article>.CreateNew().Build();
+            _context.Articles.Add(article);
+
+            var comment = Builder<CommentModel>.CreateNew().Build();
+
+            // Act
+            var result = await _commentsController.Post(article.Id, comment);
+
+            // Assert
+            Assert.NotNull(result);
+
+            var objectResult = result as CreatedResult;
+
+            Assert.NotNull(objectResult);
+
+            var content = objectResult.Value as CommentModel;
+
+            Assert.NotNull(content);
+
+            Assert.Equal(1, await _context.Comments.CountAsync());
+
+        }
+
+        [Fact]
         public void Title_must_be_under_255()
         {
             // Arrange            
-            var articleModel = new CommentModel { Title = new string('a', 256), Email = "teste@teste.com.br" };
+            var comment = new CommentModel { Title = new string('a', 256), Email = "test@test.com", Content = "Content" };
 
-            var context = new ValidationContext(articleModel, null, null);
+            var context = new ValidationContext(comment, null, null);
             var result = new List<ValidationResult>();
 
             // Act
-            var valid = Validator.TryValidateObject(articleModel, context, result, true);
+            var valid = Validator.TryValidateObject(comment, context, result, true);
 
             // Assert
+            Assert.Equal("The field Title must be a string with a maximum length of 255.", result[0].ErrorMessage);
             Assert.False(valid);
 
         }
@@ -121,14 +164,15 @@ namespace crossblog.tests.Controllers
         public void Email_must_be_under_255()
         {
             // Arrange            
-            var articleModel = new CommentModel { Email = $"{new string('a', 256)}@teste.com.br" };
+            var commentModel = new CommentModel { Email = new string('a', 256), Title = "Title", Content = "Content" };
 
-            var context = new ValidationContext(articleModel, null, null);
+            var context = new ValidationContext(commentModel, null, null);
             var result = new List<ValidationResult>();
 
             // Act
-            var valid = Validator.TryValidateObject(articleModel, context, result, true);
-
+            var valid = Validator.TryValidateObject(commentModel, context, result, true);
+            Assert.Equal("The field Email must be a string with a maximum length of 255.", result[0].ErrorMessage);
+            Assert.Equal("The Email field is not a valid e-mail address.", result[1].ErrorMessage); 
             // Assert
             Assert.False(valid);
 
@@ -138,17 +182,24 @@ namespace crossblog.tests.Controllers
         public void Email_must_be_valid()
         {
             // Arrange            
-            var articleModel = new CommentModel { Email = "teste" };
+            var commentModel = new CommentModel { Email = "teste@", Title = "Title", Content = "Content" };
 
-            var context = new ValidationContext(articleModel, null, null);
+            var context = new ValidationContext(commentModel, null, null);
             var result = new List<ValidationResult>();
 
             // Act
-            var valid = Validator.TryValidateObject(articleModel, context, result, true);
+            var valid = Validator.TryValidateObject(commentModel, context, result, true);
 
             // Assert
-            Assert.False(valid);
+            Assert.Equal("The Email field is not a valid e-mail address.", result[0].ErrorMessage);
 
+            Assert.False(valid);
+        }
+
+        public void Dispose()
+        {
+            _connection.Close();
+            _context.Dispose();
         }
     }
 }

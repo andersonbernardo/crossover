@@ -34,7 +34,7 @@ namespace crossblog.Migrations
                 {
                     Id = table.Column<int>(nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
-                    ArticleId = table.Column<int>(nullable: true),
+                    ArticleId = table.Column<int>(nullable: false),
                     Content = table.Column<string>(nullable: false),
                     Created_At = table.Column<DateTime>(nullable: false),
                     Date = table.Column<DateTime>(nullable: false),

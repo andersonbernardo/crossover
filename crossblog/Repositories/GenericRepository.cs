@@ -42,7 +42,10 @@ namespace crossblog.Repositories
         {
             T entity = new T() { Id = id };
 
+            var existEntity = _dbContext.Find(typeof(T));
+
             _dbContext.Entry(entity).State = EntityState.Deleted;
+
             await _dbContext.SaveChangesAsync();
         }
 

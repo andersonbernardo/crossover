@@ -27,18 +27,16 @@ namespace crossblog.Controllers
         [HttpGet("{articleId}/[controller]")]
         public async Task<IActionResult> Get([FromRoute]int articleId)
         {
-            var article = await _articleRepository.GetAsync(articleId);
-
+            var article = await _articleRepository.Query().Include(x => x.Comments).FirstOrDefaultAsync(x => x.Id == articleId);
+                
             if (article == null)
             {
                 return NotFound();
-            }
-
-            var comments = await _commentRepository.Query().ToListAsync();
+            }            
 
             var result = new CommentListModel
             {
-                Comments = comments.Select(c => new CommentModel
+                Comments = article.Comments.Select(c => new CommentModel
                 {
                     Id = c.Id,
                     Email = c.Email,

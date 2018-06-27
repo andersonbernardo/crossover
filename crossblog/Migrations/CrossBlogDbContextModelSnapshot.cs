@@ -50,7 +50,8 @@ namespace crossblog.Migrations
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd();
 
-                    b.Property<int>("ArticleId");
+                    b.Property<int>("ArticleId")
+                        .IsRequired();                        
 
                     b.Property<string>("Content")
                         .IsRequired();
