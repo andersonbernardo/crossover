@@ -60,60 +60,60 @@ namespace crossblog.tests.Controllers
             Assert.NotNull(objectResult);
         }
 
-        [Fact]
-        public async Task Get_ReturnsItem()
-        {
-            // Arrange            
-            var article = Builder<Article>.CreateNew().Build();
-            var comment = Builder<Comment>.CreateNew().Build();
+        //[Fact]
+        //public async Task Get_ReturnsItem()
+        //{
+        //    // Arrange            
+        //    var article = Builder<Article>.CreateNew().Build();
+        //    var comment = Builder<Comment>.CreateNew().Build();
 
-            article.Comments = new List<Comment>();
-            article.Comments.Add(comment);
+        //    article.Comments = new List<Comment>();
+        //    article.Comments.Add(comment);
 
-            _context.Articles.Add(article);
+        //    _context.Articles.Add(article);
 
-            // Act
-            var result = await _commentsController.Get(1);
+        //    // Act
+        //    var result = await _commentsController.Get(1);
 
-            // Assert
-            Assert.NotNull(result);
+        //    // Assert
+        //    Assert.NotNull(result);
 
-            var objectResult = result as OkObjectResult;
-            Assert.NotNull(objectResult);
+        //    var objectResult = result as OkObjectResult;
+        //    Assert.NotNull(objectResult);
 
-            var content = objectResult.Value as ArticleModel;
-            Assert.NotNull(content);
+        //    var content = objectResult.Value as ArticleModel;
+        //    Assert.NotNull(content);
 
-            Assert.Equal("Title1", content.Title);
-        }
+        //    Assert.Equal("Title1", content.Title);
+        //}
 
-        [Fact]
-        public async Task Put_UpdateITem()
-        {
-            // Arrange       
+        //[Fact]
+        //public async Task Put_UpdateITem()
+        //{
+        //    // Arrange       
 
-            var comment = Builder<Comment>.CreateNew().Build();
-            _context.Comments.Add(comment);            
+        //    var comment = Builder<Comment>.CreateNew().Build();
+        //    _context.Comments.Add(comment);            
 
-            var commentUpdated = new CommentModel { Title = "TitleUpdated" };
+        //    var commentUpdated = new CommentModel { Title = "TitleUpdated" };
             
-            // Act
-            var result = await _commentsController.Put(comment.Id, commentUpdated);
+        //    // Act
+        //    var result = await _commentsController.Put(comment.Id, commentUpdated);
 
-            // Assert
-            Assert.NotNull(result);
+        //    // Assert
+        //    Assert.NotNull(result);
 
-            var objectResult = result as OkObjectResult;
+        //    var objectResult = result as OkObjectResult;
 
-            Assert.NotNull(objectResult);
+        //    Assert.NotNull(objectResult);
 
-            var content = objectResult.Value as Comment;
+        //    var content = objectResult.Value as Comment;
 
-            Assert.NotNull(content);
+        //    Assert.NotNull(content);
 
-            Assert.Equal("TitleUpdated", content.Title);
+        //    Assert.Equal("TitleUpdated", content.Title);
 
-        }
+        //}
 
         [Fact]
         public async Task Post_InsertITem()
